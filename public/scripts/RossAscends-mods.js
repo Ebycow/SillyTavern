@@ -983,6 +983,17 @@ export function initRossMods() {
         'dialogue_popup_input': document.querySelector('#dialogue_popup_input'),
     };
 
+    // On macOS, event.isComposing may be false for the confirmatory Enter keydown because
+    // compositionend can fire before the keydown, sometimes even as a separate browser task.
+    // Track composition state and timestamp to suppress Enter within a short window after compositionend.
+    let imeComposing = false;
+    let imeCompositionEndTime = 0;
+    sendTextArea.addEventListener('compositionstart', () => { imeComposing = true; });
+    sendTextArea.addEventListener('compositionend', () => {
+        imeComposing = false;
+        imeCompositionEndTime = performance.now();
+    });
+
     //Additional hotkeys CTRL+ENTER and CTRL+UPARROW
     /**
      * @param {KeyboardEvent} event
@@ -996,7 +1007,8 @@ export function initRossMods() {
         //Enter to send when send_textarea in focus
         if (document.activeElement == hotkeyTargets.send_textarea) {
             const sendOnEnter = shouldSendOnEnter();
-            if (!event.isComposing && !event.shiftKey && !event.ctrlKey && !event.altKey && event.key == 'Enter' && sendOnEnter) {
+            const imeRecentlyEnded = performance.now() - imeCompositionEndTime < 50;
+            if (!event.isComposing && !imeComposing && !imeRecentlyEnded && !event.shiftKey && !event.ctrlKey && !event.altKey && event.key == 'Enter' && sendOnEnter) {
                 event.preventDefault();
                 sendTextareaMessage();
                 return;
